@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config
+  namespace: cars-dealership
+data:
+  DJANGO_SETTINGS_MODULE: "djangoproj.settings"
+  ALLOWED_HOSTS: "localhost,127.0.0.1,your-app.containers.cloud.ibm.com"

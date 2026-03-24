@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - DJANGO_SETTINGS_MODULE=djangoproj.settings
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      # Trong container, localhost không trỏ tới microservice — dùng tên service
+      - MICROSERVICE_URL=http://microservice:3000
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3
+    depends_on:
+      - microservice
+
+  microservice:
+    build:
+      context: ./microservices
+      dockerfile: ../Dockerfile.microservice
+    ports:
+      - "3000:3000"

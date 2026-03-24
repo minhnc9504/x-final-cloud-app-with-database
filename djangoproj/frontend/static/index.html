@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Best Cars Dealership - Home</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container d-flex align-items-center justify-content-between flex-wrap">
+            <a class="navbar-brand" href="/">Best Cars</a>
+            <div class="d-flex align-items-center flex-wrap g-3">
+                <a class="nav-link active" href="/">Home</a>
+                <a class="nav-link" href="/about">About Us</a>
+                <a class="nav-link" href="/contact">Contact Us</a>
+                <a class="nav-link" href="/admin/">Admin</a>
+                <!-- Auth Section (session từ /admin/login/ hoặc API login) -->
+                <a id="login-nav-link" class="nav-link" href="/admin/login/">Login</a>
+                <span id="user-info" class="nav-link" style="display:none;"></span>
+                <button id="logout-btn" class="btn-outline-primary" style="display:none;" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <h1>Best Cars Dealership</h1>
+        <p class="lead">Find your perfect vehicle from our nationwide network of trusted dealerships.</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container content-section">
+        <!-- Features Section -->
+        <h2 class="section-title">Our Services</h2>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <div class="card feature-card">
+                    <div class="card-body">
+                        <span class="icon">🚗</span>
+                        <h5 class="card-title">New Cars</h5>
+                        <p class="card-text">Explore our latest models from top manufacturers with full warranties.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card feature-card">
+                    <div class="card-body">
+                        <span class="icon">🔧</span>
+                        <h5 class="card-title">Car Service</h5>
+                        <p class="card-text">Expert maintenance and repair services by certified technicians.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card feature-card">
+                    <div class="card-body">
+                        <span class="icon">💰</span>
+                        <h5 class="card-title">Financing</h5>
+                        <p class="card-text">Flexible financing options to fit your budget and get you on the road.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card feature-card">
+                    <div class="card-body">
+                        <span class="icon">⭐</span>
+                        <h5 class="card-title">Reviews</h5>
+                        <p class="card-text">Read real customer reviews and share your experience with us.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dealers Section -->
+        <h2 class="section-title">Our Dealers</h2>
+
+        <!-- State Filter -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <label for="state-filter" class="form-label font-weight-bold">Filter by State:</label>
+                <select class="form-control" id="state-filter" onchange="filterByState(this.value)">
+                    <option value="">All States</option>
+                    <option value="TX">Texas</option>
+                    <option value="MN">Minnesota</option>
+                    <option value="KS">Kansas</option>
+                    <option value="CA">California</option>
+                    <option value="NY">New York</option>
+                    <option value="FL">Florida</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Dealers Grid -->
+        <div class="row g-4" id="dealers-container">
+            <div class="col-md-12 text-center">
+                <p>Loading dealers...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2026 Best Cars Dealership. All rights reserved. | <a href="/about">About</a> | <a href="/contact">Contact</a> | <a href="/admin/">Admin</a></p>
+    </footer>
+
+    <script>
+        async function logout() {
+            try {
+                await fetch('/api/logout/', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) { /* ignore */ }
+            window.location.reload();
+        }
+
+        async function updateNavbarAuth() {
+            const userInfo = document.getElementById('user-info');
+            const logoutBtn = document.getElementById('logout-btn');
+            const loginLink = document.getElementById('login-nav-link');
+            loginLink.href = '/admin/login/?next=' + encodeURIComponent(window.location.pathname || '/');
+            try {
+                const res = await fetch('/api/whoami/', { credentials: 'same-origin' });
+                const data = await res.json();
+                if (data.authenticated) {
+                    loginLink.style.display = 'none';
+                    userInfo.textContent = 'Hi, ' + data.username;
+                    userInfo.style.display = 'inline';
+                    logoutBtn.style.display = 'inline-block';
+                } else {
+                    loginLink.style.display = 'inline';
+                    userInfo.style.display = 'none';
+                    logoutBtn.style.display = 'none';
+                }
+            } catch (e) { /* keep defaults */ }
+        }
+
+        updateNavbarAuth();
+
+        // Current filter state
+        let currentState = '';
+
+        // Filter dealers by state
+        async function filterByState(state) {
+            currentState = state;
+            const container = document.getElementById('dealers-container');
+            container.innerHTML = '<div class="col-md-12 text-center"><p>Loading...</p></div>';
+
+            try {
+                let url;
+                if (state) {
+                    url = `/api/dealers/${state}/`;
+                } else {
+                    url = '/api/dealers/';
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const msg = (data && data.error) ? data.error : `HTTP ${response.status}`;
+                    container.innerHTML = `<div class="col-md-12 text-center"><p><strong>Không tải được đại lý.</strong><br>Chạy microservice: <code>cd microservices &amp;&amp; npm start</code> (cổng 3000), rồi tải lại trang.<br><small>${msg}</small></p></div>`;
+                    return;
+                }
+
+                if (data && data.error && !Array.isArray(data)) {
+                    container.innerHTML = `<div class="col-md-12 text-center"><p><strong>Lỗi API:</strong> ${data.error}<br>Đảm bảo microservice đang chạy tại cổng 3000.</p></div>`;
+                    return;
+                }
+
+                const dealers = Array.isArray(data) ? data : [];
+
+                if (dealers.length === 0) {
+                    container.innerHTML = '<div class="col-md-12 text-center"><p>No dealers found for this state.</p></div>';
+                    return;
+                }
+
+                container.innerHTML = dealers.map(dealer => `
+                    <div class="col-md-4">
+                        <div class="card" style="cursor:pointer;" onclick="window.location.href='/dealer/${dealer.id}/'">
+                            <div class="card-body">
+                                <h5 class="card-title">${dealer.short_name || dealer.full_name || 'Dealership'}</h5>
+                                <p class="card-text">
+                                    <strong>Full Name:</strong> ${dealer.full_name || 'N/A'}<br>
+                                    <strong>City:</strong> ${dealer.city || 'N/A'}, ${dealer.state || 'N/A'}<br>
+                                    <strong>Address:</strong> ${dealer.address || 'N/A'}<br>
+                                    <strong>Zip:</strong> ${dealer.zip || 'N/A'}
+                                </p>
+                                <button class="btn-primary" style="margin-top:10px;">View Details & Reviews</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                container.innerHTML = '<div class="col-md-12 text-center"><p>Unable to load dealers. Please try again later.</p></div>';
+            }
+        }
+
+        // Load all dealers on page load
+        filterByState('');
+    </script>
+</body>
+</html>

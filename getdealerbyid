@@ -1,0 +1,3 @@
+$ curl http://localhost:8000/api/dealers/dealer/1/
+
+[{"id": 1, "city": "El Paso", "state": "Texas", "st": "TX", "address": "3 Ecker Junction", "zip": "79905", "lat": 31.7609, "long": -106.401, "short_name": "Holden", "full_name": "Holden-Quigley"}]

@@ -1,0 +1,162 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DJANGO_VERSION: "4.2"
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+  REGISTRY: ghcr.io
+  DJANGO_IMAGE_NAME: ghcr.io/${{ github.repository }}/django-app
+  MICRO_IMAGE_NAME: ghcr.io/${{ github.repository }}/microservice
+
+jobs:
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          pip install flake8
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  test-django:
+    name: Django Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run migrations
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Run Django tests
+        run: |
+          python manage.py test
+
+  test-node:
+    name: Microservice Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        working-directory: ./microservices
+        run: npm install
+
+      - name: Run Node.js tests
+        working-directory: ./microservices
+        run: npm test
+
+  build-docker:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [lint, test-django, test-node]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Django Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ env.DJANGO_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Microservice Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./microservices
+          push: false
+          tags: ${{ env.MICRO_IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Django container
+        run: |
+          docker run -d --name django-test -p 8000:8000 ${{ env.DJANGO_IMAGE_NAME }}:latest
+          sleep 5
+          curl -f http://localhost:8000/api/health/ || exit 1
+
+      - name: Run Microservice container
+        run: |
+          docker run -d --name micro-test -p 3000:3000 ${{ env.MICRO_IMAGE_NAME }}:latest
+          sleep 5
+          curl -f http://localhost:3000/fetchDealers || exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop django-test micro-test || true
+          docker rm django-test micro-test || true
+
+  deploy:
+    name: Deploy to IBM Cloud Code Engine
+    runs-on: ubuntu-latest
+    needs: [build-docker]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and push Django image
+        run: |
+          docker build -t us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:${{ github.sha }} .
+          docker push us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:${{ github.sha }}
+          docker tag us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:${{ github.sha }} us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:latest
+          docker push us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:latest
+
+      - name: Build and push Microservice image
+        run: |
+          docker build -t us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:${{ github.sha }} -f Dockerfile.microservice .
+          docker push us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:${{ github.sha }}
+          docker tag us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:${{ github.sha }} us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:latest
+          docker push us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:latest
+
+      - name: Deploy to IBM Cloud Code Engine
+        run: |
+          ibmcloud login --apikey ${{ secrets.IBM_CLOUD_API_KEY }} -r us-south
+          ibmcloud ce app create --name django-app --image us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:latest --port 8000
+          ibmcloud ce app update --name django-app --image us.icr.io/${{ secrets.IBM_NAMESPACE }}/django-app:latest
+          ibmcloud ce app create --name microservice --image us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:latest --port 3000
+          ibmcloud ce app update --name microservice --image us.icr.io/${{ secrets.IBM_NAMESPACE }}/microservice:latest

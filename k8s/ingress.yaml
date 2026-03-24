@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cars-dealership-ingress
+  namespace: cars-dealership
+  annotations:
+    kubernetes.io/ingress.class: public
+spec:
+  rules:
+    - host: your-app.containers.cloud.ibm.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: django-service
+                port:
+                  number: 8000
+          - path: /api/dealers/
+            pathType: Prefix
+            backend:
+              service:
+                name: django-service
+                port:
+                  number: 8000

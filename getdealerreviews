@@ -1,0 +1,3 @@
+$ curl http://localhost:8000/api/dealers/1/reviews/
+
+{"dealer_id": 1, "reviews": [{"id": 1, "dealer_id": 1, "reviewer": "John Doe", "rating": 5, "text": "Fantastic services! Highly recommend this dealership.", "sentiment": "Positive"}, {"id": 2, "dealer_id": 1, "reviewer": "Jane Smith", "rating": 4, "text": "Good experience overall, friendly staff.", "sentiment": "Neutral"}]}

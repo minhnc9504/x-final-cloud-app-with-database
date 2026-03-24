@@ -1,0 +1,8 @@
+Django version 4.2.16, using settings 'djangoproj.settings'
+Starting development server at http://127.0.0.1:8000/
+Quit the server with CTRL-BREAK.
+
+System check identified no issues (0 silenced).
+March 23, 2026 - 12:00:00
+django.contrib.sessions.middleware.SessionMiddleware: Loaded session backend 'django.contrib.sessions.backends.db'
+django.contrib.auth.middleware.AuthenticationMiddleware: Loaded authentication backend 'django.contrib.auth.backends.ModelBackend'

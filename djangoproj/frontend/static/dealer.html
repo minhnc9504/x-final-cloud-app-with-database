@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealer Details - Best Cars</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container d-flex align-items-center justify-content-between flex-wrap">
+            <a class="navbar-brand" href="/">Best Cars</a>
+            <div class="d-flex align-items-center flex-wrap g-3">
+                <a class="nav-link" href="/">Home</a>
+                <a class="nav-link" href="/about">About Us</a>
+                <a class="nav-link" href="/contact">Contact Us</a>
+                <a class="nav-link" href="/admin/">Admin</a>
+                <span id="user-info" class="nav-link" style="display:none; color: #e94560;"></span>
+                <button type="button" id="logout-btn" class="btn-outline-primary" style="display:none;" onclick="logoutUser()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Dealer Detail Section -->
+    <div class="hero-section">
+        <h1>Dealer Details</h1>
+        <p class="lead">View dealer information and customer reviews.</p>
+    </div>
+
+    <div class="container content-section">
+        <!-- Dealer Info -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title" id="dealer-name">Loading...</h2>
+                        <p class="card-text" id="dealer-address"></p>
+                        <p class="card-text" id="dealer-city"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reviews Section -->
+        <h2 class="section-title">Customer Reviews</h2>
+        <div id="reviews-container" class="mb-5">
+            <p>Loading reviews...</p>
+        </div>
+
+        <!-- Post Review Section (only shown when logged in) -->
+        <div id="post-review-section" style="display:none;">
+            <h3 class="section-title">Post a Review</h3>
+            <div class="card">
+                <div class="card-body">
+                    <form id="review-form">
+                        <div class="mb-3">
+                            <label for="reviewer" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="reviewer" placeholder="Enter your name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="rating" class="form-label">Rating</label>
+                            <select class="form-control" id="rating" required>
+                                <option value="5">5 - Excellent</option>
+                                <option value="4">4 - Very Good</option>
+                                <option value="3">3 - Average</option>
+                                <option value="2">2 - Poor</option>
+                                <option value="1">1 - Terrible</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="review-text" class="form-label">Your Review</label>
+                            <textarea class="form-control" id="review-text" rows="4" placeholder="Share your experience..." required></textarea>
+                        </div>
+                        <div id="sentiment-result" class="mb-3" style="display:none;">
+                            <span>Sentiment: </span><strong id="sentiment-label"></strong>
+                            <span id="sentiment-score"></span>
+                        </div>
+                        <button type="submit" class="btn-primary">Submit Review</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="login-prompt" class="text-center">
+            <p><a id="login-to-review-link" href="/admin/login/" class="btn-primary">Login</a> to post a review.</p>
+            <p class="text-muted" style="font-size:0.9rem;">Use Django admin login — you will return to this page after signing in.</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2026 Best Cars Dealership. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Get dealer_id from URL
+        const pathParts = window.location.pathname.split('/');
+        const dealerId = pathParts[pathParts.length - 2];
+
+        async function logoutUser() {
+            try {
+                await fetch('/api/logout/', { method: 'POST', credentials: 'same-origin' });
+            } catch (e) { /* ignore */ }
+            window.location.reload();
+        }
+
+        // Kiểm tra session Django (sau khi đăng nhập qua /admin/login/)
+        async function checkLogin() {
+            const userInfo = document.getElementById('user-info');
+            const logoutBtn = document.getElementById('logout-btn');
+            const postSection = document.getElementById('post-review-section');
+            const loginPrompt = document.getElementById('login-prompt');
+            const loginLink = document.getElementById('login-to-review-link');
+
+            loginLink.href = '/admin/login/?next=' + encodeURIComponent(window.location.pathname);
+
+            try {
+                const res = await fetch('/api/whoami/', { credentials: 'same-origin' });
+                const data = await res.json();
+
+                if (data.authenticated) {
+                    userInfo.textContent = 'Hi, ' + data.username;
+                    userInfo.style.display = 'inline';
+                    logoutBtn.style.display = 'inline-block';
+                    postSection.style.display = 'block';
+                    loginPrompt.style.display = 'none';
+                    const reviewer = document.getElementById('reviewer');
+                    if (reviewer && !reviewer.value) reviewer.value = data.username;
+                } else {
+                    userInfo.style.display = 'none';
+                    logoutBtn.style.display = 'none';
+                    postSection.style.display = 'none';
+                    loginPrompt.style.display = 'block';
+                }
+            } catch (e) {
+                postSection.style.display = 'none';
+                loginPrompt.style.display = 'block';
+            }
+        }
+
+        // Load dealer details
+        async function loadDealer() {
+            try {
+                const response = await fetch(`/api/dealers/dealer/${dealerId}/`);
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    const dealer = data[0];
+                    document.getElementById('dealer-name').textContent = dealer.full_name || dealer.short_name || 'Dealership';
+                    document.getElementById('dealer-address').innerHTML =
+                        `<strong>Address:</strong> ${dealer.address || 'N/A'}`;
+                    document.getElementById('dealer-city').innerHTML =
+                        `<strong>City:</strong> ${dealer.city || 'N/A'}, ${dealer.state || 'N/A'} ${dealer.zip || ''}`;
+                } else {
+                    document.getElementById('dealer-name').textContent = 'Dealer not found';
+                }
+            } catch (error) {
+                document.getElementById('dealer-name').textContent = 'Failed to load dealer details';
+            }
+        }
+
+        // Load reviews
+        async function loadReviews() {
+            const container = document.getElementById('reviews-container');
+            try {
+                const response = await fetch(`/api/dealers/${dealerId}/reviews/`);
+                const data = await response.json();
+
+                if (data.reviews && data.reviews.length > 0) {
+                    container.innerHTML = data.reviews.map(review => `
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="card-title mb-0">${review.reviewer}</h5>
+                                    <span class="text-primary font-weight-bold">${'★'.repeat(review.rating)}${'☆'.repeat(5-review.rating)}</span>
+                                </div>
+                                <p class="card-text">${review.text}</p>
+                                <small class="text-muted">Sentiment: ${review.sentiment || 'Neutral'}</small>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p>No reviews yet. Be the first to review!</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p>Failed to load reviews.</p>';
+            }
+        }
+
+        // Load page
+        loadDealer();
+        loadReviews();
+        checkLogin();
+
+        // Review form submission
+        document.getElementById('review-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const reviewer = document.getElementById('reviewer').value;
+            const rating = document.getElementById('rating').value;
+            const text = document.getElementById('review-text').value;
+
+            try {
+                // Analyze sentiment
+                const sentimentRes = await fetch(`/api/analyze/sentiment/?text=${encodeURIComponent(text)}`);
+                const sentimentData = await sentimentRes.json();
+                document.getElementById('sentiment-label').textContent = sentimentData.sentiment;
+                document.getElementById('sentiment-score').textContent = ` (score: ${sentimentData.score})`;
+                document.getElementById('sentiment-result').style.display = 'block';
+
+                // Post review
+                const postRes = await fetch(`/api/dealers/${dealerId}/reviews/post/`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reviewer, rating: parseInt(rating), text, sentiment: sentimentData.sentiment })
+                });
+                const postData = await postRes.json();
+
+                if (postData.success) {
+                    loadReviews();
+                    document.getElementById('review-form').reset();
+                    document.getElementById('sentiment-result').style.display = 'none';
+                    alert('Review posted successfully!');
+                }
+            } catch (error) {
+                alert('Failed to post review. Please try again.');
+            }
+        });
+    </script>
+</body>
+</html>
